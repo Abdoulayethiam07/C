@@ -46,7 +46,7 @@ int main()
                 }
                 else if (i == 0 || i == largeur - 1 || j == 0 || j == hauteur - 1)
                 {
-                    printf("#"); // Les bords
+                    printf("|"); // Les bords
                 }
                 else
                 {
