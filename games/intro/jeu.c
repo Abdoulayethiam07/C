@@ -1,313 +1,237 @@
-#include <time.h>
+#include<stdio.h>
 #include "raylib.h"
-#include "raymath.h"
-#define SCREEN_WIDHT 700
-#define SCREEN_HEIGHT 650
-#define FPS 60
-#define vitesse_initiale 5
 
-// Partie Des fonctions et des structure.
-typedef enum
+// --- CONSTANTES ---
+#define TILE_SIZE 40
+#define MAP_WIDTH 15
+#define MAP_HEIGHT 13
+#define SCREEN_WIDTH (MAP_WIDTH * TILE_SIZE)
+#define SCREEN_HEIGHT (MAP_HEIGHT * TILE_SIZE + 60) // +60 pixels pour le bandeau du haut (Score/Temps)
+
+// --- ENUMS ET STRUCTURES ---
+typedef enum GameScreen
 {
-    MENU,
-    PLAY,
-    GAMEOVER
-} Game_Etat;
+    SCREEN_MENU,
+    SCREEN_GAMEPLAY,
+    SCREEN_WIN
+} GameScreen;
 
-typedef struct plage
+typedef struct Player
 {
-    int min;
-    int max;
-} plage;
+    Vector2 position;
+    float speed;
+    int currentLevel;
+} Player;
 
-typedef struct
+// --- CARTES DES NIVEAUX (0: Vide, 1: Incassable, 2: Tonneau/Caisse) ---
+int level1[MAP_HEIGHT][MAP_WIDTH] = {
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1},
+    {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1},
+    {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1},
+    {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1},
+    {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1},
+    {1, 0, 1, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 0, 1},
+    {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1},
+    {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1},
+    {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1},
+    {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1},
+    {1, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}};
+
+int level2[MAP_HEIGHT][MAP_WIDTH] = {
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1},
+    {1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1},
+    {1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1},
+    {1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1},
+    {1, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 2, 2, 1},
+    {1, 2, 1, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 2, 1},
+    {1, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 2, 2, 1},
+    {1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1},
+    {1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1},
+    {1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1},
+    {1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}};
+
+// Pointeur pour charger le niveau actif
+int (*currentMap)[MAP_WIDTH];
+
+// --- FONCTION DE COLLISION AVEC LA GRILLE ---
+bool CheckWallCollision(Vector2 nextPos)
 {
-    int x1;
-    int x2;
-    int x3;
-    int y1;
-    int y2;
-    int y3;
-    struct plage plages;
-} Obstacle;
+    // On vérifie les 4 coins du joueur pour éviter qu'il morde sur un mur
+    int margin = 4;
+    int leftTile = (nextPos.x + margin) / TILE_SIZE;
+    int rightTile = (nextPos.x + TILE_SIZE - margin) / TILE_SIZE;
+    int topTile = (nextPos.y + margin) / TILE_SIZE;
+    int bottomTile = (nextPos.y + TILE_SIZE - margin) / TILE_SIZE;
 
-void calcule_position(int min_y, int max_y, Obstacle *position)
-{
-    int a;
-
-    position->x1 = GetRandomValue(130, 220);
-    position->x2 = GetRandomValue(280, 370);
-    position->x3 = GetRandomValue(430, 520);
-    position->y1 = GetRandomValue(min_y, max_y);
-    position->y2 = GetRandomValue(min_y, max_y);
-    position->y3 = GetRandomValue(min_y, max_y);
+    // Si l'un des coins touche un mur (1) ou un tonneau (2)
+    if (currentMap[topTile][leftTile] != 0 || currentMap[topTile][rightTile] != 0 ||
+        currentMap[bottomTile][leftTile] != 0 || currentMap[bottomTile][rightTile] != 0)
+    {
+        return true;
+    }
+    return false;
 }
 
+// --- PROGRAMME PRINCIPAL ---
 int main(void)
 {
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Bomberman Prototyping");
+    SetTargetFPS(60);
 
-    InitWindow(SCREEN_WIDHT, SCREEN_HEIGHT, "Jeux");
-    SetTargetFPS(FPS);
-    SetRandomSeed(time(NULL));
+    GameScreen currentScreen = SCREEN_MENU;
 
-    Game_Etat ETAT = MENU;
-
-    // Gestion du score
-    int temps = 0;
-    int distance;
-    int checkpoint = 0;
-    int vitesse = 5;
-    int vitesse_mouvement = 5;
-    int score = 0;
-    int score_p = 0;
-
-    // variable voiture du joueur et colision
-    Vector2 position_initiale = {328, 550};
-    Rectangle voiture_player;
-    bool collisions[9];
-    bool collision = false;
-
-    // Variable de generation des obstacle
-
-    int a;
-    int c = 0;
-    bool initialisaton = false;
-    Obstacle Groupe_Obstacle[3];
-    Rectangle destination[9];
-    Texture2D images[9];
-    Rectangle sources[9];
-    Vector2 origin = {0, 0};
-
-    // chargement des texture
-    images[0] = LoadTexture("image/camion_bleu.png");
-    images[1] = LoadTexture("image/camion_rouge.png");
-    images[2] = LoadTexture("image/moto.png");
-    images[3] = LoadTexture("image/voiture_bleu.png");
-    images[4] = LoadTexture("image/voiture_jaune.png");
-    images[5] = LoadTexture("image/quad.png");
-    images[6] = LoadTexture("image/voiture_verte.png");
-    images[7] = LoadTexture("image/voiture_viollete.png");
-    images[8] = LoadTexture("image/bus.png");
-
-    Texture2D text_player = LoadTexture("image/voiture_player.png");
-    Rectangle source_player = (Rectangle){0.0f, 0.0f, (float)text_player.width, (float)text_player.height};
-
-    for (a = 0; a < 9; a++)
-    {
-        sources[a] = (Rectangle){0.0f, 0.0f, (float)images[a].width, (float)images[a].height};
-    }
-
-    // Variable de generation de la route
-
-    int axe_y_verdure[3] = {325, 0, -325};
-    int axe_y_bordure[20] = {610, 570, 530, 490, 450, 410, 370, 330, 290, 250, 210, 170, 130, 90, 50, 10, -30, -70, -110, -150};
-    int axe_y_bande[9] = {550, 450, 350, 250, 150, 50, -50, -150, -250};
+    // Initialisation du joueur
+    Player player = {0};
+    player.position = (Vector2){TILE_SIZE, TILE_SIZE * 1 + 60}; // Aligné sous le bandeau du haut
+    player.speed = 3.0f;
+    player.currentLevel = 1;
+    currentMap = level1;
 
     while (!WindowShouldClose())
     {
-
-        voiture_player = (Rectangle){position_initiale.x, position_initiale.y, 45, 70};
-
-        while (!initialisaton)
+        // ---------------------------------------------------------------------
+        // 1. MISE À JOUR DE LA LOGIQUE (UPDATE)
+        // ---------------------------------------------------------------------
+        switch (currentScreen)
         {
-
-            for (a = 0; a < 3; a++)
+        case SCREEN_MENU:
+        {
+            // Si on appuie sur ENTRER, on bascule sur le jeu
+            if (IsKeyPressed(KEY_ENTER))
             {
-                c -= 700;
-                Groupe_Obstacle[a].plages.min = c;
-                Groupe_Obstacle[a].plages.max = c + 700;
-                calcule_position(Groupe_Obstacle[a].plages.min - 80, Groupe_Obstacle[a].plages.max - 80, &Groupe_Obstacle[a]);
+                currentScreen = SCREEN_GAMEPLAY;
             }
-            initialisaton = true;
+        }
+        break;
+
+        case SCREEN_GAMEPLAY:
+        {
+            Vector2 nextPosition = player.position;
+
+            // Gestion des déplacements au clavier
+            if (IsKeyDown(KEY_RIGHT))
+                nextPosition.x += player.speed;
+            if (IsKeyDown(KEY_LEFT))
+                nextPosition.x -= player.speed;
+            if (IsKeyDown(KEY_DOWN))
+                nextPosition.y += player.speed;
+            if (IsKeyDown(KEY_UP))
+                nextPosition.y -= player.speed;
+
+            // Application du déplacement si pas de collision
+            if (!CheckWallCollision((Vector2){nextPosition.x, player.position.y}))
+            {
+                player.position.x = nextPosition.x;
+            }
+            if (!CheckWallCollision((Vector2){player.position.x, nextPosition.y}))
+            {
+                player.position.y = nextPosition.y;
+            }
+
+            // Touche "N" temporaire pour simuler le passage au Niveau 2
+            if (IsKeyPressed(KEY_N) && player.currentLevel == 1)
+            {
+                player.currentLevel = 2;
+                currentMap = level2;
+                player.position = (Vector2){TILE_SIZE, TILE_SIZE * 1 + 60}; // Reset position
+            }
+            // Touche "G" temporaire pour simuler la victoire
+            if (IsKeyPressed(KEY_G))
+            {
+                currentScreen = SCREEN_WIN;
+            }
+        }
+        break;
+
+        case SCREEN_WIN:
+        {
+            if (IsKeyPressed(KEY_ENTER))
+            {
+                // Reset pour rejouer
+                player.currentLevel = 1;
+                currentMap = level1;
+                player.position = (Vector2){TILE_SIZE, TILE_SIZE * 1 + 60};
+                currentScreen = SCREEN_MENU;
+            }
+        }
+        break;
         }
 
-        // mouvement de la voiture
-
-        if (ETAT == PLAY)
-        {
-
-            if (IsKeyDown(KEY_UP) && position_initiale.y > 0)
-            {
-                position_initiale.y -= vitesse_mouvement;
-            }
-            if (IsKeyDown(KEY_DOWN) && position_initiale.y < 580)
-            {
-                position_initiale.y += vitesse_mouvement;
-            }
-            if (IsKeyDown(KEY_LEFT) && position_initiale.x > 110)
-            {
-                position_initiale.x -= vitesse_mouvement;
-            }
-            if (IsKeyDown(KEY_RIGHT) && position_initiale.x < 540)
-            {
-                position_initiale.x += vitesse_mouvement;
-            }
-
-            for (a = 0; a < 3; a++)
-            {
-                Groupe_Obstacle[a].y1 += vitesse;
-                Groupe_Obstacle[a].y2 += vitesse;
-                Groupe_Obstacle[a].y3 += vitesse;
-                Groupe_Obstacle[a].plages.min += vitesse;
-                Groupe_Obstacle[a].plages.max += vitesse;
-
-                if (Groupe_Obstacle[a].plages.min >= SCREEN_HEIGHT)
-                {
-                    Groupe_Obstacle[a].plages.min -= 2250;
-                    Groupe_Obstacle[a].plages.max = Groupe_Obstacle[a].plages.min + 700;
-                    calcule_position(Groupe_Obstacle[a].plages.min, Groupe_Obstacle[a].plages.max, &Groupe_Obstacle[a]);
-                }
-            }
-
-            for (a = 0; a < 3; a++)
-            {
-                axe_y_verdure[a] += vitesse;
-                if (axe_y_verdure[a] >= SCREEN_HEIGHT)
-                {
-                    axe_y_verdure[a] -= 975;
-                }
-            }
-
-            for (a = 0; a < 20; a++)
-            {
-                axe_y_bordure[a] += vitesse;
-                if (axe_y_bordure[a] >= SCREEN_HEIGHT)
-                {
-                    axe_y_bordure[a] -= 800;
-                }
-            }
-
-            for (a = 0; a < 9; a++)
-            {
-                axe_y_bande[a] += vitesse;
-                if (axe_y_bande[a] >= SCREEN_HEIGHT)
-                {
-                    axe_y_bande[a] -= 900;
-                }
-            }
-
-            destination[0] = (Rectangle){Groupe_Obstacle[0].x1, Groupe_Obstacle[0].y1, 45, 90};
-            destination[1] = (Rectangle){Groupe_Obstacle[0].x2, Groupe_Obstacle[0].y2, 45, 90};
-            destination[2] = (Rectangle){Groupe_Obstacle[0].x3, Groupe_Obstacle[0].y3, 35, 90};
-
-            destination[3] = (Rectangle){Groupe_Obstacle[1].x1, Groupe_Obstacle[1].y1, 45, 90};
-            destination[4] = (Rectangle){Groupe_Obstacle[1].x2, Groupe_Obstacle[1].y2, 45, 90};
-            destination[5] = (Rectangle){Groupe_Obstacle[1].x3, Groupe_Obstacle[1].y3, 45, 80};
-
-            destination[6] = (Rectangle){Groupe_Obstacle[2].x1, Groupe_Obstacle[2].y1, 45, 90};
-            destination[7] = (Rectangle){Groupe_Obstacle[2].x2, Groupe_Obstacle[2].y2, 45, 90};
-            destination[8] = (Rectangle){Groupe_Obstacle[2].x3, Groupe_Obstacle[2].y3, 45, 110};
-
-            for (a = 0; a < 9; a++)
-            {
-                collisions[a] = CheckCollisionRecs(voiture_player, destination[a]);
-                if (collisions[a])
-                {
-                    vitesse = 0;
-                    vitesse_mouvement = 0;
-                    // collision = true;
-                    ETAT = GAMEOVER;
-                }
-            }
-
-            distance = vitesse * temps;
-            if (distance - checkpoint >= 325)
-            {
-                score++;
-                checkpoint = distance;
-                if (score - score_p >= 10)
-                {
-                    vitesse++;
-                    score_p = score;
-                }
-            }
-            temps++;
-        }
-
+        // ---------------------------------------------------------------------
+        // 2. DESSIN DU JEU (DRAW)
+        // ---------------------------------------------------------------------
         BeginDrawing();
+        ClearBackground(RAYWHITE);
 
-        ClearBackground(BLACK);
-
-        if (ETAT == PLAY)
+        switch (currentScreen)
         {
+        case SCREEN_MENU:
+        {
+            DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, DARKBLUE);
+            DrawText("BOMBERMAN", SCREEN_WIDTH / 2 - MeasureText("BOMBERMAN", 40) / 2, SCREEN_HEIGHT / 3, 40, YELLOW);
+            DrawText("Appuyez sur [ENTRER] pour Jouer", SCREEN_WIDTH / 2 - MeasureText("Appuyez sur [ENTRER] pour Jouer", 20) / 2, SCREEN_HEIGHT / 2, 20, WHITE);
+        }
+        break;
 
-            // Affichage de la route
-            for (a = 0; a < 3; a++)
+        case SCREEN_GAMEPLAY:
+        {
+            // Dessin du bandeau supérieur (Interface utilisateur comme dans la vidéo)
+            DrawRectangle(0, 0, SCREEN_WIDTH, 60, BLACK);
+            DrawText(TextFormat("NIVEAU: %d", player.currentLevel), 20, 20, 20, GOLD);
+            DrawText("PROJET C / RAYLIB", SCREEN_WIDTH - 220, 20, 20, LIGHTGRAY);
+            DrawText("Touche [N]: Niv. Suivant | [G]: Gagner", 200, 23, 14, WHITE);
+
+            // Dessin de la grille de jeu
+            for (int y = 0; y < MAP_HEIGHT; y++)
             {
-                DrawRectangle(0, axe_y_verdure[a], 80, 325, GREEN);
-                DrawRectangle(620, axe_y_verdure[a], 80, 325, GREEN);
-            }
-            for (a = 0; a < 20; a++)
-            {
-                if (a % 2 == 0)
+                for (int x = 0; x < MAP_WIDTH; x++)
                 {
-                    DrawRectangle(80, axe_y_bordure[a], 30, 40, RED);
-                    DrawRectangle(590, axe_y_bordure[a], 30, 40, RED);
+                    int tileType = currentMap[y][x];
+                    int posY = y * TILE_SIZE + 60; // Décalage à cause du bandeau
+                    int posX = x * TILE_SIZE;
+
+                    if (tileType == 1)
+                    {
+                        // Mur incassable (Gris foncé)
+                        DrawRectangle(posX, posY, TILE_SIZE, TILE_SIZE, DARKGRAY);
+                        DrawRectangleLines(posX, posY, TILE_SIZE, TILE_SIZE, BLACK);
+                    }
+                    else if (tileType == 2)
+                    {
+                        // Tonneau/Obstacle destructible (Marron)
+                        DrawRectangle(posX + 2, posY + 2, TILE_SIZE - 4, TILE_SIZE - 4, BROWN);
+                        DrawRectangleLines(posX + 2, posY + 2, TILE_SIZE - 4, TILE_SIZE - 4, DARKBROWN);
+                    }
+                    else
+                    {
+                        // Sol (Gris clair pour l'effet dalles)
+                        DrawRectangle(posX, posY, TILE_SIZE, TILE_SIZE, LIGHTGRAY);
+                        DrawRectangleLines(posX, posY, TILE_SIZE, TILE_SIZE, GRAY);
+                    }
                 }
-                else
-                {
-                    DrawRectangle(80, axe_y_bordure[a], 30, 40, WHITE);
-                    DrawRectangle(590, axe_y_bordure[a], 30, 40, WHITE);
-                }
-            }
-            for (a = 0; a < 9; a++)
-            {
-                DrawRectangle(341, axe_y_bande[a], 18, 70, WHITE);
             }
 
-            // Affichage des obstacle
-
-            for (a = 0; a < 9; a++)
-            {
-                DrawTexturePro(images[a], sources[a], destination[a], origin, 0, WHITE);
-            }
-
-            DrawTexturePro(text_player, source_player, voiture_player, origin, 0, WHITE);
-
-            DrawText(TextFormat("Score: %d", score), 470, 20, 20, GREEN);
+            // Dessin du joueur (Un rond ou un rectangle bleu en attendant vos textures)
+            DrawRectangle(player.position.x + 4, player.position.y + 4, TILE_SIZE - 8, TILE_SIZE - 8, BLUE);
         }
+        break;
 
-        else if (ETAT == MENU)
+        case SCREEN_WIN:
         {
-            DrawText("BIENVENUE", 290, 80, 20, WHITE);
-            DrawText("Cliquez sur ENTRER pour jouer et sur ECHAP pour sortir ! ", 30, 200, 20, WHITE);
-            DrawText("JOUER", 160, 300, 30, GREEN);
-            DrawText("SORTIE", 420, 300, 30, RED);
-
-            if (IsKeyPressed(KEY_ENTER))
-            {
-                ETAT = PLAY;
-            }
+            DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, GREEN);
+            DrawText("VICTOIRE !", SCREEN_WIDTH / 2 - MeasureText("VICTOIRE !", 40) / 2, SCREEN_HEIGHT / 3, 40, WHITE);
+            DrawText("Appuyez sur [ENTRER] pour revenir au menu", SCREEN_WIDTH / 2 - MeasureText("Appuyez sur [ENTRER] pour revenir au menu", 20) / 2, SCREEN_HEIGHT / 2, 20, DARKGREEN);
+        }
+        break;
         }
 
-        if (ETAT == GAMEOVER)
-        {
-            DrawText("GAME OVER", 200, 100, 40, WHITE);
-            DrawText(TextFormat("SCORE: %d", score), 240, 200, 35, WHITE);
-            DrawText("Cliquez sur ENTRER pour rejouer et sur ECHAP pour sortir ! ", 30, 300, 20, WHITE);
-            DrawText("REJOUEZ", 160, 400, 30, GREEN);
-            DrawText("SORTIE", 420, 400, 30, RED);
-
-            if (IsKeyPressed(KEY_ENTER))
-            {
-
-                vitesse = vitesse_initiale;
-                vitesse_mouvement = 5;
-                score = 0;
-                score_p = 0;
-                ETAT = PLAY;
-                initialisaton = false;
-                c = 0;
-                position_initiale = (Vector2){328, 550};
-                temps = 0;
-                checkpoint = 0;
-                SetRandomSeed(time(NULL));
-            }
-        }
         EndDrawing();
     }
 
     CloseWindow();
+    return 0;
 }
-
-// Je dois encore creer un espacement entre les zone pour évité les obstacle trop colé
