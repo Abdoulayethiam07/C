@@ -37,7 +37,7 @@ typedef struct
     Direction dir;
     bool isMoving;
     int frame;
-    float animationTimer;
+    
 } Player;
 
 typedef struct
@@ -58,14 +58,29 @@ typedef struct
 
 // Cartes du jeu
 int level1[MAP_HEIGHT][MAP_WIDTH] = {
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1}, {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1}, {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1}, {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1}, {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1}, {1, 0, 1, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 0, 1}, {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1}, {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1}, {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1}, {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1}, {1, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1}, {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}};
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 
+    {1, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1}, 
+    {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1}, 
+    {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1}, 
+    {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1}, 
+    {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1}, 
+    {1, 0, 1, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 0, 1}, 
+    {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1}, 
+    {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1}, 
+    {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1}, 
+    {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1}, 
+    {1, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1}, 
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}; 
+    // 0: Vide, 1: Incassable, 2: Tonneau/Caisse
+
 
 int level2[MAP_HEIGHT][MAP_WIDTH] = {
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1}, {1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1}, {1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1}, {1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1}, {1, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 2, 2, 1}, {1, 2, 1, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 2, 1}, {1, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 2, 2, 1}, {1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1}, {1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1}, {1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1}, {1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1}, {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}};
-
+// 0: Vide, 1: Incassable, 2: Tonneau/Caisse
 int (*currentMap)[MAP_WIDTH];
 Bomb bombs[MAX_BOMBS] = {0};
 Explosion explosions[MAX_EXPLOSIONS] = {0};
+// Prototypes des fonctions
 
 bool IsBombAtTile(int x, int y)
 {
@@ -76,6 +91,7 @@ bool IsBombAtTile(int x, int y)
     }
     return false;
 }
+
 
 bool CheckWallCollision(Vector2 nextPos, Player p)
 {
@@ -101,7 +117,7 @@ bool CheckWallCollision(Vector2 nextPos, Player p)
         return true;
     return false;
 }
-
+// Ajouté par Abdoulaye : Gestion des explosions
 void AddExplosion(int x, int y)
 {
     for (int i = 0; i < MAX_EXPLOSIONS; i++)
@@ -113,6 +129,7 @@ void AddExplosion(int x, int y)
         }
     }
 }
+// Ajouté par Abdoulaye : Déclenchement d'une explosion et propagation
 
 void TriggerExplosion(int cx, int cy)
 {
@@ -138,7 +155,7 @@ void TriggerExplosion(int cx, int cy)
         }
     }
 }
-
+// Fin des fonctions d'Abdoulaye
 int main(void)
 {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Bomberman Mini");
@@ -186,6 +203,7 @@ int main(void)
             if (IsKeyPressed(KEY_ENTER))
                 currentScreen = SCREEN_GAMEPLAY;
             break;
+            // Le reste du code de la boucle principale est dans le fichier jeufinal.c pour éviter les conflits de merge
 
         case SCREEN_GAMEPLAY:
         {

@@ -5,7 +5,8 @@
 // --- Partie de Junior & Abdoulaye (Constantes partagées) ---
 #define TILE_SIZE 40
 #define MAP_WIDTH 15
-#define MAP_HEIGHT 14P_WIDTH * TILE_SIZE)
+#define MAP_HEIGHT 13
+#define SCREEN_WIDTH (MAP_WIDTH * TILE_SIZE)
 #define SCREEN_HEIGHT (MAP_HEIGHT * TILE_SIZE + 60)
 #define MAX_BOMBS 3
 #define BOMB_FUSE_TIME 2.5f
@@ -159,7 +160,7 @@ int main(void)
 
     Texture2D texFloor = LoadTexture("../intro/images/herbe.png");
     Texture2D texWall = LoadTexture("../intro/images/murgris.png");
-    Texture2D texCrate = LoadTexture("../intro/images/tonneaux.png");
+    Texture2D texCrate = LoadTexture("../intro/images/tonneau.png");
 
     Texture2D texBomb = {0};
     Texture2D texFire = {0};
