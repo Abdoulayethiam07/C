@@ -335,8 +335,8 @@ int main(void)
             }
 
             // Définition de la portion de texture à découper
-            rectSource.x = indexImage * largeurImage;
-            rectSource.y = joueur.direction * hauteurImage;
+            // RectSource.x = indexImage * largeurImage;
+            // RectSource.y = joueur.direction * hauteurImage;
 
             // Logique pour poser une bombe (Touche Espace)
             if (IsKeyPressed(KEY_SPACE))
