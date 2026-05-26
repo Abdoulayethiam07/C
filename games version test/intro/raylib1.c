@@ -2,410 +2,498 @@
 #include "raylib.h"
 #include "math.h"
 
-#define TILE_SIZE 40
-#define MAP_WIDTH 15
-#define MAP_HEIGHT 13
-#define SCREEN_WIDTH (MAP_WIDTH * TILE_SIZE)
-#define SCREEN_HEIGHT (MAP_HEIGHT * TILE_SIZE + 60)
-#define MAX_BOMBS 3
-#define BOMB_FUSE_TIME 2.5f
-#define EXPLOSION_TIME 0.5f
-#define BOMB_RADIUS 2
+// =========================================================================
+// 📐 CONFIGURATION ET CONSTANTES
+// =========================================================================
+#define TAILLE_CASE 40
+#define LARGEUR_CARTE 15
+#define HAUTEUR_CARTE 13
+#define LARGEUR_ECRAN (LARGEUR_CARTE * TAILLE_CASE)
+#define HAUTEUR_ECRAN (HAUTEUR_CARTE * TAILLE_CASE + 60) // +60px pour le bandeau d'interface
+#define MAX_BOMBES 3
+#define TEMPS_MECHE_BOMBE 2.5f
+#define TEMPS_EXPLOSION 0.5f
+#define RAYON_BOMBE 2
 #define MAX_EXPLOSIONS 50
 #define FPS 60
 
-typedef enum
-{
-    SCREEN_MENU,
-    SCREEN_GAMEPLAY,
-    SCREEN_WIN
-} GameScreen;
+// =========================================================================
+// 🎭 ENUMS ET STRUCTURES
+// =========================================================================
 
+// États des écrans de jeu
 typedef enum
 {
-    DIR_DOWN,
-    DIR_LEFT,
-    DIR_RIGHT,
-    DIR_UP
+    ECRAN_MENU,
+    ECRAN_JEU,
+    ECRAN_VICTOIRE
+} EcranJeu;
+
+// Directions pour les déplacements et animations du joueur
+typedef enum
+{
+    DIR_BAS,
+    DIR_GAUCHE,
+    DIR_DROITE,
+    DIR_HAUT
 } Direction;
 
+// Structure du joueur
 typedef struct
 {
     Vector2 position;
-    float speed;
-    int currentLevel;
-    Direction dir;
-    bool isMoving;
-    int frame;
-    
-} Player;
+    float vitesse;
+    int niveauActuel;
+    Direction direction;
+    bool enMouvement;
+    int imageActuelle;
+} Joueur;
 
+// Structure pour la gestion des bombes
 typedef struct
 {
-    int tileX;
-    int tileY;
-    float timer;
+    int caseX;
+    int caseY;
+    float minuteur;
     bool active;
-} Bomb;
+} Bombe;
 
+// Structure pour la gestion des particules d'explosion
 typedef struct
 {
-    int tileX;
-    int tileY;
-    float timer;
+    int caseX;
+    int caseY;
+    float minuteur;
     bool active;
 } Explosion;
 
-// Cartes du jeu
-int level1[MAP_HEIGHT][MAP_WIDTH] = {
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 
-    {1, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1}, 
-    {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1}, 
-    {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1}, 
-    {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1}, 
-    {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1}, 
-    {1, 0, 1, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 0, 1}, 
-    {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1}, 
-    {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1}, 
-    {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1}, 
-    {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1}, 
-    {1, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1}, 
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}; 
-    // 0: Vide, 1: Incassable, 2: Tonneau/Caisse
+// =========================================================================
+// 🗺️ MATRICES ET CARTES DES NIVEAUX (0: Vide, 1: Incassable, 2: Caisse, 3: Bloc Doré)
+// =========================================================================
+int niveau1[HAUTEUR_CARTE][LARGEUR_CARTE] = {
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 0, 0, 3, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1}, // MODIF: Remplacement d'une caisse par un bloc doré (3)
+    {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1},
+    {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1},
+    {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1},
+    {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1},
+    {1, 0, 1, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 0, 1},
+    {1, 0, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2, 0, 1},
+    {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1},
+    {1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1},
+    {1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 0, 1},
+    {1, 0, 0, 2, 2, 2, 0, 0, 0, 2, 2, 2, 0, 0, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}};
 
+int niveau2[HAUTEUR_CARTE][LARGEUR_CARTE] = {
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1},
+    {1, 0, 1, 3, 1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1}, // MODIF: Remplacement d'une caisse par un bloc doré (3)
+    {1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1},
+    {1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1},
+    {1, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 2, 2, 1},
+    {1, 2, 1, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 2, 1},
+    {1, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 2, 2, 1},
+    {1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1},
+    {1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1},
+    {1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1},
+    {1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}};
 
-int level2[MAP_HEIGHT][MAP_WIDTH] = {
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1}, {1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1}, {1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1}, {1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1}, {1, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 2, 2, 1}, {1, 2, 1, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 2, 1}, {1, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 2, 2, 1}, {1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1}, {1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 1}, {1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1}, {1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1}, {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}};
-// 0: Vide, 1: Incassable, 2: Tonneau/Caisse
-int (*currentMap)[MAP_WIDTH];
-Bomb bombs[MAX_BOMBS] = {0};
+// Variables globales de jeu
+int (*carteActuelle)[LARGEUR_CARTE];
+Bombe bombes[MAX_BOMBES] = {0};
 Explosion explosions[MAX_EXPLOSIONS] = {0};
-// Prototypes des fonctions
+bool gagneParBloc = false; // MODIF: Flag global pour déclencher la victoire
 
-bool IsBombAtTile(int x, int y)
+// =========================================================================
+// ⚙️ FONCTIONS COMPORTEMENTALES (LOGIQUE)
+// =========================================================================
+
+// Vérifie si une bombe est déjà présente sur une case spécifique
+bool EstBombeSurCase(int x, int y)
 {
-    for (int i = 0; i < MAX_BOMBS; i++)
+    for (int i = 0; i < MAX_BOMBES; i++)
     {
-        if (bombs[i].active && bombs[i].tileX == x && bombs[i].tileY == y)
+        if (bombes[i].active && bombes[i].caseX == x && bombes[i].caseY == y)
             return true;
     }
     return false;
 }
 
-
-bool CheckWallCollision(Vector2 nextPos, Player p)
+// Gère les collisions avec l'environnement (murs, bordures, bombes)
+bool VerifierCollisionMur(Vector2 prochainePos, Joueur j)
 {
-    int m = 8;
-    int l = (nextPos.x + m) / TILE_SIZE, r = (nextPos.x + TILE_SIZE - m) / TILE_SIZE;
-    int t = (nextPos.y - 60 + m) / TILE_SIZE, b = (nextPos.y - 60 + TILE_SIZE - m) / TILE_SIZE;
+    int marge = 8; // Marge d'ajustement pour fluidifier les virages dans les couloirs
+    int gauche = (prochainePos.x + marge) / TAILLE_CASE;
+    int droite = (prochainePos.x + TAILLE_CASE - marge) / TAILLE_CASE;
+    int haut = (prochainePos.y - 60 + marge) / TAILLE_CASE; // Ajustement lié au bandeau de 60px
+    int bas = (prochainePos.y - 60 + TAILLE_CASE - marge) / TAILLE_CASE;
 
-    if (l < 0 || r >= MAP_WIDTH || t < 0 || b >= MAP_HEIGHT)
-        return true;
-    if (currentMap[t][l] || currentMap[t][r] || currentMap[b][l] || currentMap[b][r])
+    // Détection des limites extérieures de la carte
+    if (gauche < 0 || droite >= LARGEUR_CARTE || haut < 0 || bas >= HAUTEUR_CARTE)
         return true;
 
-    int px = (p.position.x + TILE_SIZE / 2) / TILE_SIZE;
-    int py = (p.position.y - 60 + TILE_SIZE / 2) / TILE_SIZE;
+    // Détection des obstacles solides (1: Murs, 2: Caisses, 3: Bloc Doré détecté automatiquement car non-nul)
+    if (carteActuelle[haut][gauche] || carteActuelle[haut][droite] || carteActuelle[bas][gauche] || carteActuelle[bas][droite])
+        return true;
 
-    if (IsBombAtTile(l, t) && (l != px || t != py))
+    // Calcul de la case actuelle occupée par le centre du joueur
+    int joueurX = (j.position.x + TAILLE_CASE / 2) / TAILLE_CASE;
+    int joueurY = (j.position.y - 60 + TAILLE_CASE / 2) / TAILLE_CASE;
+
+    // Bloquer le joueur sur les bombes externes (il peut marcher sur sa propre bombe tant qu'il ne la quitte pas)
+    if (EstBombeSurCase(gauche, haut) && (gauche != joueurX || haut != joueurY))
         return true;
-    if (IsBombAtTile(r, t) && (r != px || t != py))
+    if (EstBombeSurCase(droite, haut) && (droite != joueurX || haut != joueurY))
         return true;
-    if (IsBombAtTile(l, b) && (l != px || b != py))
+    if (EstBombeSurCase(gauche, bas) && (gauche != joueurX || bas != joueurY))
         return true;
-    if (IsBombAtTile(r, b) && (r != px || b != py))
+    if (EstBombeSurCase(droite, bas) && (droite != joueurX || bas != joueurY))
         return true;
+
     return false;
 }
-// Ajouté par Abdoulaye : Gestion des explosions
-void AddExplosion(int x, int y)
+
+// Enregistre une nouvelle cellule d'explosion active dans la file
+void AjouterExplosion(int x, int y)
 {
     for (int i = 0; i < MAX_EXPLOSIONS; i++)
     {
         if (!explosions[i].active)
         {
-            explosions[i] = (Explosion){x, y, EXPLOSION_TIME, true};
+            // Correction syntaxique de l'initialisation de structure pour compatibilité standard
+            explosions[i].caseX = x;
+            explosions[i].caseY = y;
+            explosions[i].minuteur = TEMPS_EXPLOSION;
+            explosions[i].active = true;
             break;
         }
     }
 }
-// Ajouté par Abdoulaye : Déclenchement d'une explosion et propagation
 
-void TriggerExplosion(int cx, int cy)
+// Déclenche l'onde d'explosion en croix (Haut, Bas, Gauche, Droite)
+void DeclencherExplosion(int centreX, int centreY)
 {
-    AddExplosion(cx, cy);
-    int dx[] = {0, 0, -1, 1}, dy[] = {-1, 1, 0, 0};
+    AjouterExplosion(centreX, centreY);
+
+    int dirX[] = {0, 0, -1, 1};
+    int dirY[] = {-1, 1, 0, 0};
+
     for (int i = 0; i < 4; i++)
     {
-        for (int r = 1; r <= BOMB_RADIUS; r++)
+        for (int r = 1; r <= RAYON_BOMBE; r++)
         {
-            int tx = cx + dx[i] * r, ty = cy + dy[i] * r;
-            if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT)
+            int cibleX = centreX + dirX[i] * r;
+            int cibleY = centreY + dirY[i] * r;
+
+            // Limitation aux bordures du terrain
+            if (cibleX < 0 || cibleX >= LARGEUR_CARTE || cibleY < 0 || cibleY >= HAUTEUR_CARTE)
                 break;
-            if (currentMap[ty][tx] == 1)
+            // Arrêt immédiat si impact avec un mur indestructible
+            if (carteActuelle[cibleY][cibleX] == 1)
                 break;
-            if (currentMap[ty][tx] == 2)
+            // Destruction de la caisse et arrêt du souffle de l'explosion
+            if (carteActuelle[cibleY][cibleX] == 2)
             {
-                currentMap[ty][tx] = 0;
-                AddExplosion(tx, ty);
+                carteActuelle[cibleY][cibleX] = 0;
+                AjouterExplosion(cibleX, cibleY);
                 break;
             }
-            if (currentMap[ty][tx] == 0)
-                AddExplosion(tx, ty);
+            // MODIF: Destruction du bloc doré -> active le flag de victoire
+            if (carteActuelle[cibleY][cibleX] == 3)
+            {
+                carteActuelle[cibleY][cibleX] = 0;
+                AjouterExplosion(cibleX, cibleY);
+                gagneParBloc = true;
+                break;
+            }
+            // Propagation normale sur sol vide
+            if (carteActuelle[cibleY][cibleX] == 0)
+                AjouterExplosion(cibleX, cibleY);
         }
     }
 }
-// Fin des fonctions d'Abdoulaye
+
+// =========================================================================
+// 🚀 POINT D'ENTRÉE PRINCIPAL
+// =========================================================================
 int main(void)
 {
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Bomberman Mini");
+    // Initialisation de la fenêtre graphique Raylib
+    InitWindow(LARGEUR_ECRAN, HAUTEUR_ECRAN, "Bomberman Mini");
     SetTargetFPS(FPS);
 
-    // =========================================================================
-    // 🛠️ FIX 1 : CHARGEMENT UNIQUE DES TEXTURES AVANT LA BOUCLE (Plus de fuite mémoire !)
-    // =========================================================================
-    Texture2D texPlayer = LoadTexture("../intro/images/bonhomme.png");
+    // Chargement initial sécurisé de l'ensemble des textures
+    Texture2D texJoueur = LoadTexture("../intro/images/bonhomme.png");
+    float largeurImage = (float)texJoueur.width / 3;
+    float hauteurImage = (float)texJoueur.height / 4;
+    Rectangle rectSource = {0.0f, 0.0f, largeurImage, hauteurImage};
 
-    float frameWidth = (float)texPlayer.width / 3;
-    float frameHeight = (float)texPlayer.height / 4;
-    Rectangle sourceRec = {0.0f, 0.0f, frameWidth, frameHeight};
+    // Syntaxe d'initialisation explicite pour compatibilité stricte
+    Bombe b_init = {0, 0, 0.0f, false};
+    for (int i = 0; i < MAX_BOMBES; i++)
+        bombes[i] = b_init;
+    Explosion e_init = {0, 0, 0.0f, false};
+    for (int i = 0; i < MAX_EXPLOSIONS; i++)
+        explosions[i] = e_init;
 
-    Texture2D texFloor = LoadTexture("../intro/images/herbe.png");
-    Texture2D texWall = LoadTexture("../intro/images/murgris.png");
-    Texture2D texCrate = LoadTexture("../intro/images/tonneau.png");
+    Texture2D texSol = LoadTexture("../intro/images/herbe.png");
+    Texture2D texMur = LoadTexture("../intro/images/murgris.png");
+    Texture2D texCaisse = LoadTexture("../intro/images/tonneau.png");
+    
 
-    Texture2D texBomb = {0};
-    Texture2D texFire = {0};
+    Texture2D texBombe = {0};
+    Texture2D texFeu = {0};
     if (FileExists("../intro/images/bomb.png"))
-        texBomb = LoadTexture("../intro/images/bomb.png");
+        texBombe = LoadTexture("../intro/images/bomb.png");
     if (FileExists("../intro/images/fire.png"))
-        texFire = LoadTexture("../intro/images/fire.png");
+        texFeu = LoadTexture("../intro/images/fire.png");
 
-    // Variables d'animation reliées à la boucle principale
-    int currentFrame = 0;
-    float frameCounter = 0.0f;
-    float frameSpeed = 12.0f;
+    // Initialisation des états d'animation du personnage
+    int indexImage = 0;
+    float compteurImage = 0.0f;
+    float vitesseAnim = 12.0f;
 
-    GameScreen currentScreen = SCREEN_MENU;
-    Player player = {(Vector2){TILE_SIZE, TILE_SIZE + 60}, 2.5f, 1, DIR_DOWN, false, 1, 0.0f};
-    currentMap = level1;
+    // Configuration de départ des entités
+    EcranJeu ecranActuel = ECRAN_MENU;
+    Joueur joueur = {(Vector2){TAILLE_CASE, TAILLE_CASE + 60}, 2.5f, 1, DIR_BAS, false, 1};
+    carteActuelle = niveau1;
 
-    // =========================================================================
-    // 🛠️ FIX 2 : UNE SEULE ET UNIQUE BOUCLE PRINCIPALE (Fin du conflit de boucles)
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // 🔄 BOUCLE PRINCIPALE UNIQUE
+    // ---------------------------------------------------------------------
     while (!WindowShouldClose())
     {
-        float dt = GetFrameTime();
+        float tempsDelta = GetFrameTime();
 
-        switch (currentScreen)
+        // --- SECTION UPDATE : LOGIQUE DE JEU ---
+        switch (ecranActuel)
         {
-        case SCREEN_MENU:
+        case ECRAN_MENU:
             if (IsKeyPressed(KEY_ENTER))
-                currentScreen = SCREEN_GAMEPLAY;
+                ecranActuel = ECRAN_JEU;
             break;
-            // Le reste du code de la boucle principale est dans le fichier jeufinal.c pour éviter les conflits de merge
 
-        case SCREEN_GAMEPLAY:
+        case ECRAN_JEU:
         {
-            Vector2 nextPos = player.position;
-            player.isMoving = false;
+            // MODIF: Si le bloc doré a été détruit, on passe à l'écran de victoire
+            if (gagneParBloc)
+            {
+                ecranActuel = ECRAN_VICTOIRE;
+                gagneParBloc = false;
+            }
 
-            // Inputs et direction
+            Vector2 prochainePos = joueur.position;
+            joueur.enMouvement = false;
+
+            // Captures des entrées clavier et assignation de la direction
             if (IsKeyDown(KEY_RIGHT))
             {
-                nextPos.x += player.speed;
-                player.dir = DIR_RIGHT;
-                player.isMoving = true;
+                prochainePos.x += joueur.vitesse;
+                joueur.direction = DIR_DROITE;
+                joueur.enMouvement = true;
             }
             else if (IsKeyDown(KEY_LEFT))
             {
-                nextPos.x -= player.speed;
-                player.dir = DIR_LEFT;
-                player.isMoving = true;
+                prochainePos.x -= joueur.vitesse;
+                joueur.direction = DIR_GAUCHE;
+                joueur.enMouvement = true;
             }
             else if (IsKeyDown(KEY_DOWN))
             {
-                nextPos.y += player.speed;
-                player.dir = DIR_DOWN;
-                player.isMoving = true;
+                prochainePos.y += joueur.vitesse;
+                joueur.direction = DIR_BAS;
+                joueur.enMouvement = true;
             }
             else if (IsKeyDown(KEY_UP))
             {
-                nextPos.y -= player.speed;
-                player.dir = DIR_UP;
-                player.isMoving = true;
+                prochainePos.y -= joueur.vitesse;
+                joueur.direction = DIR_HAUT;
+                joueur.enMouvement = true;
             }
 
-            // Résolution des collisions
-            if (!CheckWallCollision((Vector2){nextPos.x, player.position.y}, player))
-                player.position.x = nextPos.x;
-            if (!CheckWallCollision((Vector2){player.position.x, nextPos.y}, player))
-                player.position.y = nextPos.y;
+            // Application des déplacements par axes s'il n'y a pas de collision
+            if (!VerifierCollisionMur((Vector2){prochainePos.x, joueur.position.y}, joueur))
+                joueur.position.x = prochainePos.x;
+            if (!VerifierCollisionMur((Vector2){joueur.position.x, prochainePos.y}, joueur))
+                joueur.position.y = prochainePos.y;
 
-            // 🛠️ FIX 3 : ANIMATION DYNAMIQUE AVEC LA FEUILLE DE SPRITE
-            if (player.isMoving)
+            // Calcul dynamique des frames de l'animation du sprite
+            if (joueur.enMouvement)
             {
-                frameCounter += dt;
-                if (frameCounter >= (1.0f / frameSpeed))
+                compteurImage += tempsDelta;
+                if (compteurImage >= (1.0f / vitesseAnim))
                 {
-                    frameCounter = 0.0f;
-                    currentFrame = (currentFrame + 1) % 3; // Défilement horizontal (3 frames)
+                    compteurImage = 0.0f;
+                    indexImage = (indexImage + 1) % 3; // Défilement horizontal cyclique (3 frames)
                 }
             }
             else
             {
-                currentFrame = 1; // Frame du milieu (immobile)
+                indexImage = 1; // Position stable par défaut à l'arrêt
             }
 
-            // Application de la découpe sur la feuille de texture
-            sourceRec.x = currentFrame * frameWidth;
-            sourceRec.y = player.dir * frameHeight; // Ligne gérée par la direction du joueur !
+            // Définition de la portion de texture à découper
+            rectSource.x = indexImage * largeurImage;
+            rectSource.y = joueur.direction * hauteurImage;
 
-            // Poser une bombe
+            // Logique pour poser une bombe (Touche Espace)
             if (IsKeyPressed(KEY_SPACE))
             {
-                int tx = (player.position.x + TILE_SIZE / 2) / TILE_SIZE;
-                int ty = (player.position.y - 60 + TILE_SIZE / 2) / TILE_SIZE;
-                if (!IsBombAtTile(tx, ty))
+                int caseX = (joueur.position.x + TAILLE_CASE / 2) / TAILLE_CASE;
+                int caseY = (joueur.position.y - 60 + TAILLE_CASE / 2) / TAILLE_CASE;
+                if (!EstBombeSurCase(caseX, caseY))
                 {
-                    for (int i = 0; i < MAX_BOMBS; i++)
+                    for (int i = 0; i < MAX_BOMBES; i++)
                     {
-                        if (!bombs[i].active)
+                        if (!bombes[i].active)
                         {
-                            bombs[i] = (Bomb){tx, ty, BOMB_FUSE_TIME, true};
+                            bombes[i].caseX = caseX;
+                            bombes[i].caseY = caseY;
+                            bombes[i].minuteur = TEMPS_MECHE_BOMBE;
+                            bombes[i].active = true;
                             break;
                         }
                     }
                 }
             }
 
-            // Logique des bombes actives
-            for (int i = 0; i < MAX_BOMBS; i++)
+            // Actualisation des minuteurs des bombes posées
+            for (int i = 0; i < MAX_BOMBES; i++)
             {
-                if (bombs[i].active)
+                if (bombes[i].active)
                 {
-                    bombs[i].timer -= dt;
-                    if (bombs[i].timer <= 0.0f)
+                    bombes[i].minuteur -= tempsDelta;
+                    if (bombes[i].minuteur <= 0.0f)
                     {
-                        bombs[i].active = false;
-                        TriggerExplosion(bombs[i].tileX, bombs[i].tileY);
+                        bombes[i].active = false;
+                        DeclencherExplosion(bombes[i].caseX, bombes[i].caseY);
                     }
                 }
             }
 
-            // Logique des explosions
+            // Actualisation de la durée de vie des explosions actives
             for (int i = 0; i < MAX_EXPLOSIONS; i++)
             {
                 if (explosions[i].active)
                 {
-                    explosions[i].timer -= dt;
-                    if (explosions[i].timer <= 0.0f)
+                    explosions[i].minuteur -= tempsDelta;
+                    if (explosions[i].minuteur <= 0.0f)
                         explosions[i].active = false;
                 }
             }
 
-            // Changements de niveaux / triche
-            if (IsKeyPressed(KEY_N) && player.currentLevel == 1)
+            // Raccourcis développeurs / triche de progression
+            if (IsKeyPressed(KEY_N) && joueur.niveauActuel == 1)
             {
-                player.currentLevel = 2;
-                currentMap = level2;
-                player.position = (Vector2){TILE_SIZE, TILE_SIZE + 60};
+                joueur.niveauActuel = 2;
+                carteActuelle = niveau2;
+                niveau2[2][3] = 3; // MODIF: Régénère le bloc doré du niveau 2
+                joueur.position = (Vector2){TAILLE_CASE, TAILLE_CASE + 60};
             }
             if (IsKeyPressed(KEY_G))
-                currentScreen = SCREEN_WIN;
+                ecranActuel = ECRAN_VICTOIRE;
         }
         break;
 
-        case SCREEN_WIN:
+        case ECRAN_VICTOIRE:
             if (IsKeyPressed(KEY_ENTER))
             {
-                player.currentLevel = 1;
-                currentMap = level1;
-                player.position = (Vector2){TILE_SIZE, TILE_SIZE + 60};
-                player.dir = DIR_DOWN;
-                currentScreen = SCREEN_MENU;
+                joueur.niveauActuel = 1;
+                carteActuelle = niveau1;
+                niveau1[1][3] = 3; // MODIF: Réinitialise le bloc doré du niveau 1 pour la prochaine partie
+                niveau2[2][3] = 3; // MODIF: Réinitialise le bloc doré du niveau 2 pour la prochaine partie
+                joueur.position = (Vector2){TAILLE_CASE, TAILLE_CASE + 60};
+                joueur.direction = DIR_BAS;
+                ecranActuel = ECRAN_MENU;
             }
             break;
         }
 
-        // =========================================================================
-        // RENDU GRAPHIQUE (DRAW)
-        // =========================================================================
+        // --- SECTION DRAW : RENDU VISUEL ---
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        if (currentScreen == SCREEN_MENU)
+        if (ecranActuel == ECRAN_MENU)
         {
-            DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, DARKBLUE);
-            DrawText("WELCOME TO BOMBERMAN", SCREEN_WIDTH / 2 - MeasureText("WELCOME TO BOMBERMAN", 30) / 2, SCREEN_HEIGHT / 3, 30, YELLOW);
+            DrawRectangle(0, 0, LARGEUR_ECRAN, HAUTEUR_ECRAN, DARKBLUE);
+            DrawText("WELCOME TO BOMBERMAN", LARGEUR_ECRAN / 2 - MeasureText("WELCOME TO BOMBERMAN", 30) / 2, HAUTEUR_ECRAN / 3, 30, YELLOW);
         }
-        else if (currentScreen == SCREEN_GAMEPLAY)
+        else if (ecranActuel == ECRAN_JEU)
         {
-            DrawRectangle(0, 0, SCREEN_WIDTH, 60, BLACK);
-            DrawText(TextFormat("NIVEAU: %d", player.currentLevel), 20, 20, 20, GOLD);
+            // Dessin de la barre d'outils / UI
+            DrawRectangle(0, 0, LARGEUR_ECRAN, 60, BLACK);
+            DrawText(TextFormat("NIVEAU: %d", joueur.niveauActuel), 20, 20, 20, GOLD);
 
-            // Cartographie des sols et blocs
-            for (int y = 0; y < MAP_HEIGHT; y++)
+            // Génération graphique du sol et des modules de blocs
+            for (int y = 0; y < HAUTEUR_CARTE; y++)
             {
-                for (int x = 0; x < MAP_WIDTH; x++)
+                for (int x = 0; x < LARGEUR_CARTE; x++)
                 {
-                    float px = x * TILE_SIZE, py = y * TILE_SIZE + 60;
-                    DrawTexturePro(texFloor, (Rectangle){0, 0, texFloor.width, texFloor.height}, (Rectangle){px, py, TILE_SIZE, TILE_SIZE}, (Vector2){0, 0}, 0.0f, WHITE);
-                    if (currentMap[y][x] == 1)
-                        DrawTexturePro(texWall, (Rectangle){0, 0, texWall.width, texWall.height}, (Rectangle){px, py, TILE_SIZE, TILE_SIZE}, (Vector2){0, 0}, 0.0f, WHITE);
-                    if (currentMap[y][x] == 2)
-                        DrawTexturePro(texCrate, (Rectangle){0, 0, texCrate.width, texCrate.height}, (Rectangle){px, py, TILE_SIZE, TILE_SIZE}, (Vector2){0, 0}, 0.0f, WHITE);
+                    float posX = x * TAILLE_CASE, posY = y * TAILLE_CASE + 60;
+
+                    DrawTexturePro(texSol, (Rectangle){0, 0, texSol.width, texSol.height}, (Rectangle){posX, posY, TAILLE_CASE, TAILLE_CASE}, (Vector2){0, 0}, 0.0f, WHITE);
+                    if (carteActuelle[y][x] == 1)
+                        DrawTexturePro(texMur, (Rectangle){0, 0, texMur.width, texMur.height}, (Rectangle){posX, posY, TAILLE_CASE, TAILLE_CASE}, (Vector2){0, 0}, 0.0f, WHITE);
+                    if (carteActuelle[y][x] == 2)
+                        DrawTexturePro(texCaisse, (Rectangle){0, 0, texCaisse.width, texCaisse.height}, (Rectangle){posX, posY, TAILLE_CASE, TAILLE_CASE}, (Vector2){0, 0}, 0.0f, WHITE);
+
+                    // MODIF: Rendu visuel du bloc doré (Un rectangle couleur OR)
+                    if (carteActuelle[y][x] == 3)
+                        DrawRectangle(posX, posY, TAILLE_CASE, TAILLE_CASE, GOLD);
                 }
             }
 
-            // Rendu des bombes
-            for (int i = 0; i < MAX_BOMBS; i++)
+            // Affichage graphique des bombes (avec un effet d'échelle pulsatif)
+            for (int i = 0; i < MAX_BOMBES; i++)
             {
-                if (bombs[i].active)
+                if (bombes[i].active)
                 {
-                    float p = 1.0f + (sinf(bombs[i].timer * 10.0f) * 0.05f);
-                    float bx = bombs[i].tileX * TILE_SIZE + (TILE_SIZE - TILE_SIZE * p) / 2;
-                    float by = bombs[i].tileY * TILE_SIZE + 60 + (TILE_SIZE - TILE_SIZE * p) / 2;
-                    if (texBomb.width > 0)
-                        DrawTexturePro(texBomb, (Rectangle){0, 0, texBomb.width, texBomb.height}, (Rectangle){bx, by, TILE_SIZE * p, TILE_SIZE * p}, (Vector2){0, 0}, 0.0f, WHITE);
+                    float pulse = 1.0f + (sinf(bombes[i].minuteur * 10.0f) * 0.05f);
+                    float posX_bombe = bombes[i].caseX * TAILLE_CASE + (TAILLE_CASE - TAILLE_CASE * pulse) / 2;
+                    float posY_bombe = bombes[i].caseY * TAILLE_CASE + 60 + (TAILLE_CASE - TAILLE_CASE * pulse) / 2;
+
+                    if (texBombe.width > 0)
+                        DrawTexturePro(texBombe, (Rectangle){0, 0, texBombe.width, texBombe.height}, (Rectangle){posX_bombe, posY_bombe, TAILLE_CASE * pulse, TAILLE_CASE * pulse}, (Vector2){0, 0}, 0.0f, WHITE);
                     else
-                        DrawCircleV((Vector2){bx + TILE_SIZE * p / 2, by + TILE_SIZE * p / 2}, (TILE_SIZE * p) * 0.35f, BLACK);
+                        DrawCircleV((Vector2){posX_bombe + TAILLE_CASE * pulse / 2, posY_bombe + TAILLE_CASE * pulse / 2}, (TAILLE_CASE * pulse) * 0.35f, BLACK);
                 }
             }
 
-            // Rendu des explosions
+            // Affichage des tuiles d'explosions actives
             for (int i = 0; i < MAX_EXPLOSIONS; i++)
             {
                 if (explosions[i].active)
                 {
-                    if (texFire.width > 0)
-                        DrawTexturePro(texFire, (Rectangle){0, 0, texFire.width, texFire.height}, (Rectangle){explosions[i].tileX * TILE_SIZE, explosions[i].tileY * TILE_SIZE + 60, TILE_SIZE, TILE_SIZE}, (Vector2){0, 0}, 0.0f, WHITE);
+                    if (texFeu.width > 0)
+                        DrawTexturePro(texFeu, (Rectangle){0, 0, texFeu.width, texFeu.height}, (Rectangle){explosions[i].caseX * TAILLE_CASE, explosions[i].caseY * TAILLE_CASE + 60, TAILLE_CASE, TAILLE_CASE}, (Vector2){0, 0}, 0.0f, WHITE);
                     else
-                        DrawRectangle(explosions[i].tileX * TILE_SIZE, explosions[i].tileY * TILE_SIZE + 60, TILE_SIZE, TILE_SIZE, ORANGE);
+                        DrawRectangle(explosions[i].caseX * TAILLE_CASE, explosions[i].caseY * TAILLE_CASE + 60, TAILLE_CASE, TAILLE_CASE, ORANGE);
                 }
             }
 
-            // 🛠️ FIX 4 : LE JOUEUR EST ENFIN DESSINÉ AVEC SA FRAME ET SA DIRECTION REELLES !
-            DrawTexturePro(texPlayer, sourceRec, (Rectangle){player.position.x, player.position.y, TILE_SIZE, TILE_SIZE}, (Vector2){0, 0}, 0.0f, WHITE);
+            // Rendu finalisé du joueur avec sa découpe de sprite correspondante
+            DrawTexturePro(texJoueur, rectSource, (Rectangle){joueur.position.x, joueur.position.y, TAILLE_CASE, TAILLE_CASE}, (Vector2){0, 0}, 0.0f, WHITE);
         }
-        else if (currentScreen == SCREEN_WIN)
+        else if (ecranActuel == ECRAN_VICTOIRE)
         {
-            DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, GREEN);
-            DrawText("VICTOIRE !", SCREEN_WIDTH / 2 - MeasureText("VICTOIRE !", 40) / 2, SCREEN_HEIGHT / 3, 40, WHITE);
+            DrawRectangle(0, 0, LARGEUR_ECRAN, HAUTEUR_ECRAN, GREEN);
+            DrawText("VICTOIRE !", LARGEUR_ECRAN / 2 - MeasureText("VICTOIRE !", 40) / 2, HAUTEUR_ECRAN / 3, 40, WHITE);
         }
 
         EndDrawing();
     }
 
-    // Libération correcte de la mémoire à la fermeture du jeu
-    UnloadTexture(texFloor);
-    UnloadTexture(texWall);
-    UnloadTexture(texCrate);
-    UnloadTexture(texPlayer);
-    if (texBomb.width > 0)
-        UnloadTexture(texBomb);
-    if (texFire.width > 0)
-        UnloadTexture(texFire);
+    // Unload / Libération propre des ressources graphiques de la VRAM
+    UnloadTexture(texSol);
+    UnloadTexture(texMur);
+    UnloadTexture(texCaisse);
+    UnloadTexture(texJoueur);
+    if (texBombe.width > 0)
+        UnloadTexture(texBombe);
+    if (texFeu.width > 0)
+        UnloadTexture(texFeu);
 
     CloseWindow();
     return 0;
